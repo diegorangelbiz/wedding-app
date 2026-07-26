@@ -7,7 +7,12 @@ const MAX_BYTES = 12 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  const bucket = locals.runtime.env.PHOTOS;
+  const env = locals.runtime.env;
+  const bucket = env.PHOTOS;
+
+  if (!isAllowedOrigin(request, env.ALLOWED_ORIGINS)) {
+    return json({ error: "Forbidden" }, 403);
+  }
 
   const form = await request.formData();
   const file = form.get("photo");
@@ -35,6 +40,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   return json({ key, uploadedAt }, 201);
 };
+
+// Keeps other sites from using this endpoint as free image hosting. Requests with
+// no Origin header (curl, some native clients) are allowed through — the endpoint
+// is public by design, this only blocks browsers acting for another site.
+function isAllowedOrigin(request: Request, allowList?: string): boolean {
+  const allowed = (allowList ?? "")
+    .split(",")
+    .map((host) => host.trim())
+    .filter(Boolean);
+  if (allowed.length === 0) return true;
+
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+
+  try {
+    return allowed.includes(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+}
 
 function json(body: unknown, status: number) {
   return new Response(JSON.stringify(body), {

@@ -13,6 +13,9 @@
   "observability": {
     "enabled": true
   },
+  "vars": {
+    "ALLOWED_ORIGINS": "www.aileendiego.com,aileendiego.com"
+  },
   "r2_buckets": [
     {
       "binding": "PHOTOS",
