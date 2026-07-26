@@ -18,6 +18,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
     />
   </head>
   <body data-base={base} data-state="ready">
+    <header class="brand">
+      <img src={`${base}/logo-ad.png`} alt="Aileen &amp; Diego" width="691" height="361" />
+    </header>
+
     <main>
       <!-- Ready -->
       <section class="panel" data-panel="ready">
@@ -150,7 +154,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         margin: 0;
         min-height: 100dvh;
         display: flex;
-        justify-content: center;
+        flex-direction: column;
+        align-items: center;
         padding: max(1.5rem, env(safe-area-inset-top)) 1.5rem
           max(1.75rem, env(safe-area-inset-bottom));
         background: var(--cream);
@@ -159,9 +164,23 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         -webkit-font-smoothing: antialiased;
       }
 
+      /* Sits above the state panels so it stays put as the page changes state. */
+      .brand {
+        flex: none;
+      }
+
+      .brand img {
+        display: block;
+        width: auto;
+        height: auto;
+        max-width: min(13rem, 55vw);
+      }
+
       main {
+        flex: 1;
         width: min(26rem, 100%);
         display: flex;
+        min-height: 0;
       }
 
       /* Two rows: content takes the free space and centres inside it, actions sit
@@ -180,11 +199,14 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         display: grid;
       }
 
+      /* Content hangs from the top so it reads as one block with the logo,
+         leaving the empty middle to separate it from the action at the bottom. */
       .panel-body {
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
+        padding-top: 2rem;
       }
 
       .panel-actions {
