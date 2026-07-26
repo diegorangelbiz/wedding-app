@@ -1,5 +1,12 @@
 {
   "cloud": {
     "framework": "astro"
+  },
+  "telemetry": {
+    "global": {
+      "allowTelemetry": true,
+      "lastPrompted": 1785024976879,
+      "version": "2.2.0"
+    }
   }
 }
