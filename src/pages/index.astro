@@ -8,47 +8,69 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#1a1614" />
+    <meta name="theme-color" content="#fffef9" />
     <title>Share a photo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Corinthia:wght@400;700&family=PT+Serif:wght@400;700&display=swap"
+    />
   </head>
-  <body data-base={base}>
+  <body data-base={base} data-state="ready">
     <main>
-      <header>
-        <p class="eyebrow">Our wedding</p>
-        <h1>Share a photo</h1>
-        <p class="lede">Snap a picture and it appears on the big screen.</p>
-      </header>
+      <!-- Ready -->
+      <section class="panel" data-panel="ready">
+        <p class="eyebrow">Aileen &amp; Diego</p>
+        <h1 class="display">Share a photo</h1>
+        <p class="lede">Take a picture and it appears on the big screen.</p>
 
-      <label class="capture" id="capture-label">
-        <input id="photo-input" type="file" accept="image/*" capture="environment" hidden />
-        <span class="capture-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <label class="button" id="capture-label">
+          <input id="photo-input" type="file" accept="image/*" capture="environment" hidden />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
             <path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.7l1.1-1.8A1 1 0 0 1 9.2 3.7h5.6a1 1 0 0 1 .9.5L16.8 6h1.7A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" />
             <circle cx="12" cy="12.8" r="3.6" />
           </svg>
-        </span>
-        <span class="capture-text">Take a photo</span>
-      </label>
+          <span>Take a photo</span>
+        </label>
+      </section>
 
-      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <!-- Sending -->
+      <section class="panel" data-panel="sending">
+        <div class="spinner" aria-hidden="true"></div>
+        <p class="lede">Sending…</p>
+      </section>
 
-      <div class="thumbs" id="thumbs"></div>
+      <!-- Sent -->
+      <section class="panel" data-panel="sent">
+        <svg class="tick" viewBox="0 0 52 52" fill="none" stroke="currentColor" aria-hidden="true">
+          <circle cx="26" cy="26" r="24" stroke-width="1.5" opacity="0.35" />
+          <path d="M15 27l8 8 15-16" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <h2 class="display display-sm">Thank you</h2>
+        <p class="lede">Your photo is on its way to the screen.</p>
+        <button class="button button-quiet" type="button" data-action="again">Take another</button>
+      </section>
+
+      <!-- Error -->
+      <section class="panel" data-panel="error">
+        <h2 class="display display-sm">Hmm</h2>
+        <p class="lede" id="error-text">That didn’t send.</p>
+        <button class="button" type="button" data-action="again">Try again</button>
+      </section>
     </main>
 
     <script>
       const base = document.body.dataset.base ?? "";
       const input = document.getElementById("photo-input") as HTMLInputElement;
-      const label = document.getElementById("capture-label") as HTMLLabelElement;
-      const status = document.getElementById("status") as HTMLParagraphElement;
-      const thumbs = document.getElementById("thumbs") as HTMLDivElement;
+      const errorText = document.getElementById("error-text") as HTMLParagraphElement;
 
       const MAX_EDGE = 1920;
       const QUALITY = 0.82;
 
-      function setStatus(message: string, tone: "" | "ok" | "error" = "") {
-        status.textContent = message;
-        status.dataset.tone = tone;
-      }
+      const setState = (state: string) => {
+        document.body.dataset.state = state;
+      };
 
       async function shrink(file: File): Promise<Blob> {
         const bitmap = await createImageBitmap(file);
@@ -65,48 +87,49 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         const blob = await new Promise<Blob | null>((resolve) =>
           canvas.toBlob(resolve, "image/jpeg", QUALITY),
         );
-        if (!blob) throw new Error("Could not process image");
+        if (!blob) throw new Error("Could not read that photo");
         return blob;
-      }
-
-      function addThumb(blob: Blob) {
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(blob);
-        img.onload = () => URL.revokeObjectURL(img.src);
-        thumbs.prepend(img);
-        while (thumbs.children.length > 6) thumbs.lastElementChild!.remove();
       }
 
       input.addEventListener("change", async () => {
         const file = input.files?.[0];
         if (!file) return;
 
-        label.setAttribute("aria-busy", "true");
-        setStatus("Uploading…");
+        setState("sending");
 
         try {
-          const blob = await shrink(file);
           const body = new FormData();
-          body.append("photo", blob, "photo.jpg");
+          body.append("photo", await shrink(file), "photo.jpg");
 
           const response = await fetch(`${base}/api/upload`, { method: "POST", body });
           if (!response.ok) {
             const detail = await response.json().catch(() => null);
-            throw new Error(detail?.error ?? "Upload failed");
+            throw new Error(detail?.error ?? "That didn’t send.");
           }
 
-          addThumb(blob);
-          setStatus("Sent! It'll show up on the screen shortly.", "ok");
+          setState("sent");
         } catch (error) {
-          setStatus(error instanceof Error ? error.message : "Upload failed", "error");
+          errorText.textContent =
+            error instanceof Error ? error.message : "That didn’t send.";
+          setState("error");
         } finally {
-          label.removeAttribute("aria-busy");
           input.value = "";
         }
       });
+
+      for (const button of document.querySelectorAll('[data-action="again"]')) {
+        button.addEventListener("click", () => setState("ready"));
+      }
     </script>
 
     <style>
+      :root {
+        --cream: #fffef9;
+        --rose: #9b6459;
+        --brown: #70362b;
+        --sage: #bac7af;
+      }
+
       *,
       *::before,
       *::after {
@@ -120,108 +143,124 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         place-items: center;
         padding: max(1.5rem, env(safe-area-inset-top)) 1.5rem
           max(1.5rem, env(safe-area-inset-bottom));
-        background: radial-gradient(circle at 50% 0%, #2c2521, #14100e 70%);
-        color: #f6efe8;
-        font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif;
+        background: var(--cream);
+        color: var(--rose);
+        font-family: "PT Serif", Georgia, serif;
         -webkit-font-smoothing: antialiased;
       }
 
       main {
-        width: min(28rem, 100%);
+        width: min(26rem, 100%);
+      }
+
+      /* Only the panel matching the current state is shown. */
+      .panel {
+        display: none;
+        flex-direction: column;
+        align-items: center;
         text-align: center;
+        gap: 0;
+      }
+
+      body[data-state="ready"] [data-panel="ready"],
+      body[data-state="sending"] [data-panel="sending"],
+      body[data-state="sent"] [data-panel="sent"],
+      body[data-state="error"] [data-panel="error"] {
+        display: flex;
       }
 
       .eyebrow {
-        margin: 0 0 0.5rem;
-        font-size: 0.75rem;
-        letter-spacing: 0.18em;
+        margin: 0 0 0.25rem;
+        font-size: 0.8rem;
+        letter-spacing: 0.22em;
         text-transform: uppercase;
-        color: #c9a227;
       }
 
-      h1 {
+      .display {
         margin: 0;
-        font-size: clamp(2rem, 9vw, 2.75rem);
-        font-weight: 600;
-        letter-spacing: -0.02em;
+        font-family: Corinthia, "PT Serif", cursive;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--brown);
+        font-size: clamp(3.25rem, 17vw, 4.75rem);
+      }
+
+      .display-sm {
+        font-size: clamp(3rem, 15vw, 4rem);
       }
 
       .lede {
-        margin: 0.65rem 0 2.5rem;
-        color: #b9aca2;
-        font-size: 1rem;
+        margin: 0.75rem 0 0;
+        font-size: 1.05rem;
         line-height: 1.5;
       }
 
-      .capture {
-        display: flex;
-        flex-direction: column;
+      .button {
+        display: inline-flex;
         align-items: center;
-        gap: 0.9rem;
-        padding: 2.5rem 1.5rem;
-        border: 1px solid rgba(201, 162, 39, 0.35);
-        border-radius: 1.5rem;
-        background: rgba(255, 255, 255, 0.04);
+        justify-content: center;
+        gap: 0.65rem;
+        margin-top: 2.25rem;
+        padding: 1rem 2rem;
+        min-height: 3.5rem;
+        border: none;
+        border-radius: 25px;
+        background: var(--sage);
+        color: var(--brown);
+        font-family: inherit;
+        font-size: 1.25rem;
         cursor: pointer;
-        transition:
-          transform 0.15s ease,
-          background 0.2s ease,
-          border-color 0.2s ease;
         -webkit-tap-highlight-color: transparent;
+        transition: transform 0.15s ease, filter 0.2s ease;
       }
 
-      .capture:active {
-        transform: scale(0.98);
-        background: rgba(255, 255, 255, 0.07);
+      .button:active {
+        transform: scale(0.97);
+        filter: brightness(0.95);
       }
 
-      .capture[aria-busy="true"] {
-        opacity: 0.55;
-        pointer-events: none;
-      }
-
-      .capture-icon svg {
-        width: 3rem;
-        height: 3rem;
-        color: #c9a227;
+      .button svg {
+        width: 1.6rem;
+        height: 1.6rem;
         stroke-linecap: round;
         stroke-linejoin: round;
       }
 
-      .capture-text {
-        font-size: 1.15rem;
-        font-weight: 600;
+      .button-quiet {
+        background: none;
+        color: var(--rose);
+        border: 1px solid rgba(155, 100, 89, 0.35);
       }
 
-      .status {
-        min-height: 1.5rem;
-        margin: 1.25rem 0 0;
-        font-size: 0.95rem;
-        color: #b9aca2;
+      .tick {
+        width: 4rem;
+        height: 4rem;
+        margin-bottom: 1.25rem;
+        color: var(--brown);
       }
 
-      .status[data-tone="ok"] {
-        color: #7fd48b;
+      .spinner {
+        width: 2.5rem;
+        height: 2.5rem;
+        border: 2px solid rgba(155, 100, 89, 0.2);
+        border-top-color: var(--rose);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
       }
 
-      .status[data-tone="error"] {
-        color: #f08a7a;
+      @keyframes spin {
+        to {
+          transform: rotate(1turn);
+        }
       }
 
-      .thumbs {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        margin-top: 1.5rem;
-      }
-
-      .thumbs img {
-        width: 3.5rem;
-        height: 3.5rem;
-        object-fit: cover;
-        border-radius: 0.6rem;
-        border: 1px solid rgba(255, 255, 255, 0.12);
+      @media (prefers-reduced-motion: reduce) {
+        .spinner {
+          animation-duration: 2s;
+        }
+        .button {
+          transition: none;
+        }
       }
     </style>
   </body>

@@ -9,6 +9,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Slideshow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Corinthia:wght@400;700&family=PT+Serif:wght@400&display=swap"
+    />
   </head>
   <body data-base={base}>
     <div class="stage">
@@ -116,9 +122,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         margin: 0;
         height: 100dvh;
         overflow: hidden;
-        background: #0b0908;
-        color: #6f645c;
-        font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+        /* A deep tint of the site's brown rather than black: still lets photos
+           carry the room, but reads as part of the wedding palette. */
+        background: #2a1512;
+        color: #c9a99f;
+        font-family: "PT Serif", Georgia, serif;
       }
 
       .stage {
@@ -146,8 +154,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         display: grid;
         place-content: center;
         margin: 0;
-        font-size: 1.1rem;
-        letter-spacing: 0.02em;
+        font-family: Corinthia, "PT Serif", cursive;
+        font-size: clamp(3rem, 8vw, 5rem);
+        color: #e8d5cf;
       }
 
       .empty[hidden] {
