@@ -41,40 +41,40 @@ export const POST: APIRoute = async ({ request, locals }) => {
   return json({ key, uploadedAt }, 201);
 };
 
-// Extra hosts beyond the site's own. Webflow Cloud's builder merges only
-// kv_namespaces / r2_buckets / d1_databases from wrangler.json into its own
-// template — a "vars" block is silently dropped — so ALLOWED_ORIGINS is only
-// useful if that changes or when running elsewhere.
-const EXTRA_ALLOWED_HOSTS = ["localhost", "127.0.0.1"];
+// Domains the capture page is served from. Suffix matches, so the apex, www, any
+// future subdomain, and the *.webflow.io staging URL all pass without edits.
+//
+// A same-origin check is impossible here: behind Webflow Cloud's proxy the worker
+// only ever sees Host = <env-id>.wf-app-prod.cosmic.webflow.services, with no
+// x-forwarded-host. Origin is the sole header carrying the public hostname —
+// which is also why Astro's own checkOrigin had to be disabled.
+const ALLOWED_DOMAIN_SUFFIXES = ["aileendiego.com", "webflow.io"];
+const ALLOWED_EXACT_HOSTS = ["localhost", "127.0.0.1"];
 
 // Stops another site from driving visitors' browsers into uploading here. It is
-// deliberately permissive: the endpoint is public by design (anyone can post to
-// it directly), so a false positive costs a guest their photo while buying
-// almost no security. Anything ambiguous is allowed.
-//
-// The primary rule is a same-origin match against the Host header rather than a
-// hardcoded domain list — the site is reachable on its custom domain and on
-// *.webflow.io, and hardcoding meant guests on the webflow.io URL got a 403.
+// deliberately permissive: Origin is client-controlled and the endpoint is public
+// by design, so this only deters casual cross-site embedding. A false positive
+// costs a guest their photo, so anything ambiguous is allowed through.
 function isAllowedOrigin(request: Request, allowList?: string): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return true;
 
-  let originHost: string;
+  let host: string;
   try {
-    originHost = new URL(origin).hostname;
+    host = new URL(origin).hostname.toLowerCase();
   } catch {
     return true;
   }
 
-  const selfHost = (request.headers.get("host") ?? "").split(":")[0];
-  if (selfHost && originHost === selfHost) return true;
-
   const configured = (allowList ?? "")
     .split(",")
-    .map((host) => host.trim())
+    .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
 
-  return [...configured, ...EXTRA_ALLOWED_HOSTS].includes(originHost);
+  const suffixes = [...ALLOWED_DOMAIN_SUFFIXES, ...configured];
+  if (suffixes.some((s) => host === s || host.endsWith(`.${s}`))) return true;
+
+  return ALLOWED_EXACT_HOSTS.includes(host);
 }
 
 function json(body: unknown, status: number) {
