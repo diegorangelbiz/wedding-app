@@ -1,0 +1,158 @@
+---
+export const prerender = false;
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slideshow</title>
+  </head>
+  <body data-base={base}>
+    <div class="stage">
+      <img id="layer-a" class="layer is-active" alt="" />
+      <img id="layer-b" class="layer" alt="" />
+    </div>
+    <p class="empty" id="empty">Waiting for the first photo…</p>
+
+    <script>
+      const base = document.body.dataset.base ?? "";
+      const layers = [
+        document.getElementById("layer-a") as HTMLImageElement,
+        document.getElementById("layer-b") as HTMLImageElement,
+      ];
+      const empty = document.getElementById("empty") as HTMLParagraphElement;
+
+      const SLIDE_MS = 7000;
+      const POLL_MS = 10000;
+
+      let known: string[] = [];
+      let seen = new Set<string>();
+      let priority: string[] = [];
+      let cursor = 0;
+      let activeLayer = 0;
+      let latestTimestamp = 0;
+
+      const urlFor = (id: string) => `${base}/api/image/${id}`;
+
+      function preload(id: string): Promise<string> {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(id);
+          img.onerror = reject;
+          img.src = urlFor(id);
+        });
+      }
+
+      function nextId(): string | null {
+        if (priority.length) return priority.shift()!;
+        if (!known.length) return null;
+        const id = known[cursor % known.length];
+        cursor += 1;
+        return id ?? null;
+      }
+
+      async function advance() {
+        const id = nextId();
+        if (!id) return;
+
+        try {
+          await preload(id);
+        } catch {
+          return;
+        }
+
+        const incoming = layers[activeLayer === 0 ? 1 : 0];
+        incoming.src = urlFor(id);
+        incoming.classList.add("is-active");
+        layers[activeLayer].classList.remove("is-active");
+        activeLayer = activeLayer === 0 ? 1 : 0;
+      }
+
+      async function poll() {
+        try {
+          const response = await fetch(`${base}/api/photos`, { cache: "no-store" });
+          if (!response.ok) return;
+
+          const { photos } = (await response.json()) as {
+            photos: { id: string; uploadedAt: number }[];
+          };
+          if (!photos.length) return;
+
+          const fresh = photos.filter((photo) => !seen.has(photo.id));
+          const isFirstLoad = seen.size === 0;
+
+          for (const photo of photos) seen.add(photo.id);
+          known = photos.map((photo) => photo.id);
+
+          // Newly uploaded photos jump the queue so guests see their shot right away.
+          if (!isFirstLoad) {
+            const jumpers = fresh
+              .filter((photo) => photo.uploadedAt > latestTimestamp)
+              .map((photo) => photo.id);
+            priority.push(...jumpers);
+          }
+
+          latestTimestamp = Math.max(latestTimestamp, ...photos.map((p) => p.uploadedAt));
+
+          if (isFirstLoad) {
+            empty.hidden = true;
+            advance();
+          }
+        } catch {
+          // Network hiccup — the next poll will catch up.
+        }
+      }
+
+      poll();
+      setInterval(poll, POLL_MS);
+      setInterval(advance, SLIDE_MS);
+    </script>
+
+    <style>
+      body {
+        margin: 0;
+        height: 100dvh;
+        overflow: hidden;
+        background: #0b0908;
+        color: #6f645c;
+        font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+      }
+
+      .stage {
+        position: absolute;
+        inset: 0;
+      }
+
+      .layer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        opacity: 0;
+        transition: opacity 1.1s ease-in-out;
+      }
+
+      .layer.is-active {
+        opacity: 1;
+      }
+
+      .empty {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        margin: 0;
+        font-size: 1.1rem;
+        letter-spacing: 0.02em;
+      }
+
+      .empty[hidden] {
+        display: none;
+      }
+    </style>
+  </body>
+</html>
