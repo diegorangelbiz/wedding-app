@@ -41,35 +41,40 @@ export const POST: APIRoute = async ({ request, locals }) => {
   return json({ key, uploadedAt }, 201);
 };
 
-// Webflow Cloud's builder merges only kv_namespaces / r2_buckets / d1_databases
-// from wrangler.json into its own template — a "vars" block is silently dropped,
-// so ALLOWED_ORIGINS never reaches the worker. These defaults are the real
-// enforcement; the env var stays supported in case that changes.
-const DEFAULT_ALLOWED_HOSTS = [
-  "www.aileendiego.com",
-  "aileendiego.com",
-  "wedding-app.webflow.io",
-  "localhost",
-];
+// Extra hosts beyond the site's own. Webflow Cloud's builder merges only
+// kv_namespaces / r2_buckets / d1_databases from wrangler.json into its own
+// template — a "vars" block is silently dropped — so ALLOWED_ORIGINS is only
+// useful if that changes or when running elsewhere.
+const EXTRA_ALLOWED_HOSTS = ["localhost", "127.0.0.1"];
 
-// Keeps other sites from using this endpoint as free image hosting. Requests with
-// no Origin header (curl, some native clients) are allowed through — the endpoint
-// is public by design, this only blocks browsers acting for another site.
+// Stops another site from driving visitors' browsers into uploading here. It is
+// deliberately permissive: the endpoint is public by design (anyone can post to
+// it directly), so a false positive costs a guest their photo while buying
+// almost no security. Anything ambiguous is allowed.
+//
+// The primary rule is a same-origin match against the Host header rather than a
+// hardcoded domain list — the site is reachable on its custom domain and on
+// *.webflow.io, and hardcoding meant guests on the webflow.io URL got a 403.
 function isAllowedOrigin(request: Request, allowList?: string): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+
+  let originHost: string;
+  try {
+    originHost = new URL(origin).hostname;
+  } catch {
+    return true;
+  }
+
+  const selfHost = (request.headers.get("host") ?? "").split(":")[0];
+  if (selfHost && originHost === selfHost) return true;
+
   const configured = (allowList ?? "")
     .split(",")
     .map((host) => host.trim())
     .filter(Boolean);
-  const allowed = configured.length > 0 ? configured : DEFAULT_ALLOWED_HOSTS;
 
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-
-  try {
-    return allowed.includes(new URL(origin).hostname);
-  } catch {
-    return false;
-  }
+  return [...configured, ...EXTRA_ALLOWED_HOSTS].includes(originHost);
 }
 
 function json(body: unknown, status: number) {
