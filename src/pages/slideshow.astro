@@ -21,6 +21,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       <img id="layer-a" class="layer is-active" alt="" />
       <img id="layer-b" class="layer" alt="" />
     </div>
+
+    <!-- Fills the margins a portrait photo leaves on a landscape screen. -->
+    <img class="mark mark-left" src={`${base}/logo-ad.png`} alt="" aria-hidden="true" />
+    <img class="mark mark-right" src={`${base}/logo-ad.png`} alt="" aria-hidden="true" />
+
     <p class="empty" id="empty">Waiting for the first photo…</p>
 
     <script>
@@ -43,13 +48,23 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
       const urlFor = (id: string) => `${base}/api/image/${id}`;
 
-      function preload(id: string): Promise<string> {
+      function preload(id: string): Promise<HTMLImageElement> {
         return new Promise((resolve, reject) => {
           const img = new Image();
-          img.onload = () => resolve(id);
+          img.onload = () => resolve(img);
           img.onerror = reject;
           img.src = urlFor(id);
         });
+      }
+
+      // object-fit: contain only leaves side margins when the photo is narrower
+      // than the screen. Landscape shots reach the edges, so the marks come off
+      // rather than sitting on top of the photo.
+      function updateMarks(img: HTMLImageElement) {
+        const leavesSideMargin =
+          img.naturalWidth / img.naturalHeight <
+          window.innerWidth / window.innerHeight;
+        document.body.classList.toggle("has-side-margin", leavesSideMargin);
       }
 
       function nextId(): string | null {
@@ -64,8 +79,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         const id = nextId();
         if (!id) return;
 
+        let loaded: HTMLImageElement;
         try {
-          await preload(id);
+          loaded = await preload(id);
         } catch {
           return;
         }
@@ -75,6 +91,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         incoming.classList.add("is-active");
         layers[activeLayer].classList.remove("is-active");
         activeLayer = activeLayer === 0 ? 1 : 0;
+        updateMarks(loaded);
       }
 
       async function poll() {
@@ -146,6 +163,35 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
       .layer.is-active {
         opacity: 1;
+      }
+
+      /* Sits in the letterbox margin beside a portrait photo. Rendered cream via
+         filter (the source art is brown, which disappears on this ground) and
+         kept faint so a landscape photo that reaches the edges is not competing
+         with it. Hidden on narrow screens, where there is no side margin. */
+      .mark {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: clamp(5rem, 11vw, 13rem);
+        height: auto;
+        /* Source art is brown, which sinks into this ground — render it cream. */
+        filter: brightness(0) invert(1);
+        opacity: 0;
+        transition: opacity 0.8s ease;
+        pointer-events: none;
+      }
+
+      body.has-side-margin .mark {
+        opacity: 0.55;
+      }
+
+      .mark-left {
+        left: 3vw;
+      }
+
+      .mark-right {
+        right: 3vw;
       }
 
       .empty {
