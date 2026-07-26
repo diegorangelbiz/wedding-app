@@ -14,7 +14,13 @@ slideshow within seconds. Astro + Cloudflare Workers, deployed to Webflow Cloud.
 | `/api/image/*` | `GET` the image bytes for one photo                 |
 
 All routes are served under the mount path configured in `astro.config.mjs`
-(`base: "/app"`), so the live capture URL is `https://yoursite.com/app`.
+(`base: "/share"`), so the live URLs are:
+
+- Capture (NFC tags point here): <https://www.aileendiego.com/share>
+- Slideshow (venue display): <https://www.aileendiego.com/share/slideshow>
+
+A Webflow Cloud app mounts at exactly one path, so every route sits under that
+prefix — the two pages cannot live at unrelated top-level paths.
 
 ## How it works
 
@@ -37,25 +43,43 @@ npm install
 npm run build && npx wrangler dev --port 8788 --local
 ```
 
-Then open http://localhost:8788/app (capture) and http://localhost:8788/app/slideshow.
+Then open http://localhost:8788/share (capture) and
+http://localhost:8788/share/slideshow.
 
 `wrangler dev --local` emulates R2 on disk, so uploads work without touching
 Cloudflare. Plain `npm run dev` does **not** provide the R2 binding.
 
 ## Deploying to Webflow Cloud
 
-1. Push this repo to GitHub.
-2. In your Webflow site, go to **Webflow Cloud** and create a project pointed at
-   this repo, with the mount path set to `/app` (must match `base` in
-   `astro.config.mjs`).
-3. Deploy. Webflow Cloud reads `wrangler.json` and provisions the R2 bucket and KV
-   namespace automatically.
-4. After the first deploy, replace the placeholder `id` on the `SESSION` KV
-   namespace in `wrangler.json` with the real ID from the Webflow Cloud dashboard,
-   then redeploy.
+Deploy from the CLI (`npx webflow auth login` first):
 
-The `SESSION` KV binding is required by the Astro Cloudflare adapter even though
-this app does not use sessions.
+```bash
+npx webflow cloud deploy --site-id 688c264bd0cd934e04a483b2 --mount /share
+```
+
+`--mount` must be passed explicitly and must match `base` in `astro.config.mjs`,
+or the deploy fails with `ENVIRONMENT_MOUNT_MISMATCH`. Changing the mount path
+also needs the Webflow site republished — add `--auto-publish`, but note that
+publishes *all* pending changes on the site, not just this app.
+
+Webflow Cloud reads `wrangler.json` and provisions the R2 bucket and KV namespace
+automatically. The `SESSION` KV binding is required by the Astro Cloudflare
+adapter even though this app does not use sessions.
+
+### Gotchas worth knowing
+
+These cost real debugging time:
+
+- **`vars` in `wrangler.json` is silently dropped.** The builder merges only
+  `kv_namespaces`, `r2_buckets` and `d1_databases` into its own template, so
+  environment variables set that way never reach the worker.
+- **The proxy rewrites `Host`.** The worker only ever sees
+  `<env-id>.wf-app-prod.cosmic.webflow.services`, with no `x-forwarded-host`, so
+  no same-origin check can work — `Origin` is the only header carrying the public
+  hostname. This is also why `security.checkOrigin` is disabled.
+- **Webflow replaces `astro.config.mjs` at build time** with a template that
+  merges yours and always adds `@astrojs/react`. React and react-dom must be
+  declared as dependencies or the deploy build fails.
 
 ## Configuration
 

@@ -4,7 +4,7 @@ import cloudflare from "@astrojs/cloudflare";
 
 // Must match the mount path of the Webflow Cloud environment, or deploys fail
 // with ENVIRONMENT_MOUNT_MISMATCH.
-const BASE_PATH = "/photo";
+const BASE_PATH = "/share";
 
 export default defineConfig({
   output: "server",
