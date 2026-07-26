@@ -1,10 +1,17 @@
 import type { APIRoute } from "astro";
-import { PREFIX, timestampFromKey } from "../../lib/photos";
+import {
+  PREFIX,
+  SEED_PREFIX,
+  idFromKey,
+  timestampFromKey,
+  type PhotoKind,
+} from "../../lib/photos";
 
 export const prerender = false;
 
 const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 500;
+const SEED_LIMIT = 300;
 
 export const GET: APIRoute = async ({ url, locals }) => {
   const bucket = locals.runtime.env.PHOTOS;
@@ -15,12 +22,23 @@ export const GET: APIRoute = async ({ url, locals }) => {
     MAX_LIMIT,
   );
 
-  const listing = await bucket.list({ prefix: PREFIX, limit });
+  // Guest photos are windowed to the most recent `limit`; the couple's seed
+  // photos are always returned in full, so a busy night cannot push them out.
+  const [guests, seeds] = await Promise.all([
+    bucket.list({ prefix: PREFIX, limit }),
+    bucket.list({ prefix: SEED_PREFIX, limit: SEED_LIMIT }),
+  ]);
 
-  const photos = listing.objects.map((object) => ({
-    id: object.key.slice(PREFIX.length),
-    uploadedAt: timestampFromKey(object.key),
-  }));
+  const describe = (key: string, kind: PhotoKind) => ({
+    id: idFromKey(key, kind),
+    uploadedAt: timestampFromKey(key, kind),
+    kind,
+  });
+
+  const photos = [
+    ...guests.objects.map((object) => describe(object.key, "guest")),
+    ...seeds.objects.map((object) => describe(object.key, "seed")),
+  ].sort((a, b) => b.uploadedAt - a.uploadedAt);
 
   return new Response(JSON.stringify({ photos }), {
     headers: {

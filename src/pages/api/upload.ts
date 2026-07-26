@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
-import { buildKey } from "../../lib/photos";
+import { buildKey, idFromKey, type PhotoKind } from "../../lib/photos";
+import { isAuthorised } from "../../lib/admin";
 
 export const prerender = false;
 
@@ -27,18 +28,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: "Photo is too large" }, 413);
   }
 
+  // Seed photos never age out of the slideshow, so only the admin page may
+  // create them — otherwise a guest could pin their own photo for the night.
+  const kind: PhotoKind = form.get("kind") === "seed" ? "seed" : "guest";
+  if (kind === "seed" && !isAuthorised(request)) {
+    return json({ error: "Wrong passcode" }, 403);
+  }
+
   const uploadedAt = Date.now();
-  const key = buildKey(uploadedAt);
+  const key = buildKey(uploadedAt, kind);
 
   await bucket.put(key, await file.arrayBuffer(), {
     httpMetadata: {
       contentType: file.type,
       cacheControl: "public, max-age=31536000, immutable",
     },
-    customMetadata: { uploadedAt: String(uploadedAt) },
+    customMetadata: { uploadedAt: String(uploadedAt), kind },
   });
 
-  return json({ key, uploadedAt }, 201);
+  return json({ id: idFromKey(key, kind), uploadedAt, kind }, 201);
 };
 
 // Domains the capture page is served from. Suffix matches, so the apex, www, any

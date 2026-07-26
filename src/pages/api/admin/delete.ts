@@ -1,10 +1,8 @@
 import type { APIRoute } from "astro";
-import { PREFIX } from "../../../lib/photos";
+import { keyFromId } from "../../../lib/photos";
 import { isAuthorised } from "../../../lib/admin";
 
 export const prerender = false;
-
-const ID_PATTERN = /^[0-9]{13}-[0-9a-f]{8}\.jpg$/;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   if (!isAuthorised(request)) {
@@ -12,13 +10,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   const body = (await request.json().catch(() => null)) as { id?: string } | null;
-  const id = body?.id;
-  if (!id || !ID_PATTERN.test(id)) {
+  const key = body?.id ? keyFromId(body.id) : null;
+  if (!key) {
     return json({ error: "Unknown photo" }, 400);
   }
+  const id = body!.id!;
 
   const bucket = locals.runtime.env.PHOTOS;
-  const key = `${PREFIX}${id}`;
 
   await bucket.delete(key);
 

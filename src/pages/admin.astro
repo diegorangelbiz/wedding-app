@@ -43,6 +43,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         <h1>Photos <span class="count" id="count"></span></h1>
         <button class="button button-quiet" type="button" id="refresh">Refresh</button>
       </header>
+      <label class="dropzone" id="dropzone">
+        <input id="bulk-input" type="file" accept="image/*" multiple hidden />
+        <strong>Add your own photos</strong>
+        <span>Choose files or drag them here. They stay in the slideshow all night.</span>
+      </label>
+      <p class="note" id="bulk-status" role="status" aria-live="polite"></p>
+
       <p class="note">
         Tap a photo to remove it. It leaves the slideshow within about a minute.
       </p>
@@ -58,6 +65,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       const gateForm = document.getElementById("gate-form") as HTMLFormElement;
       const passcodeInput = document.getElementById("passcode") as HTMLInputElement;
       const gateError = document.getElementById("gate-error") as HTMLParagraphElement;
+      const dropzone = document.getElementById("dropzone") as HTMLLabelElement;
+      const bulkInput = document.getElementById("bulk-input") as HTMLInputElement;
+      const bulkStatus = document.getElementById("bulk-status") as HTMLParagraphElement;
 
       const STORE_KEY = "ad-admin-passcode";
       let passcode = sessionStorage.getItem(STORE_KEY) ?? "";
@@ -88,9 +98,66 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         grid.replaceChildren(...photos.map(tile));
       }
 
-      function tile(photo: { id: string; uploadedAt: number }): HTMLElement {
+      // Same resize the capture page does, so bulk-added photos are not full
+      // camera files sitting in R2 and crawling onto the venue display.
+      const MAX_EDGE = 1920;
+      const QUALITY = 0.82;
+
+      async function shrink(file: File): Promise<Blob> {
+        const bitmap = await createImageBitmap(file);
+        const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(bitmap.width * scale);
+        canvas.height = Math.round(bitmap.height * scale);
+        canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close();
+
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, "image/jpeg", QUALITY),
+        );
+        if (!blob) throw new Error("Could not read that photo");
+        return blob;
+      }
+
+      async function bulkUpload(files: File[]) {
+        const images = files.filter((file) => file.type.startsWith("image/"));
+        if (!images.length) return;
+
+        let done = 0;
+        let failed = 0;
+        bulkStatus.dataset.tone = "";
+
+        // Sequential: a wedding venue's upstream does not thank you for 80
+        // parallel uploads, and progress stays honest.
+        for (const file of images) {
+          bulkStatus.textContent = `Uploading ${done + failed + 1} of ${images.length}…`;
+          try {
+            const body = new FormData();
+            body.append("photo", await shrink(file), "photo.jpg");
+            body.append("kind", "seed");
+
+            const response = await fetch(`${base}/api/upload`, {
+              method: "POST",
+              headers: { "x-admin-passcode": passcode },
+              body,
+            });
+            if (!response.ok) throw new Error(String(response.status));
+            done += 1;
+          } catch {
+            failed += 1;
+          }
+        }
+
+        bulkStatus.textContent = failed
+          ? `Added ${done}. ${failed} didn’t upload.`
+          : `Added ${done} photo${done === 1 ? "" : "s"}.`;
+        bulkStatus.dataset.tone = failed ? "error" : "ok";
+        load();
+      }
+
+      function tile(photo: { id: string; uploadedAt: number; kind?: string }): HTMLElement {
         const figure = document.createElement("figure");
-        figure.className = "tile";
+        figure.className = photo.kind === "seed" ? "tile is-seed" : "tile";
 
         const img = document.createElement("img");
         img.src = `${base}/api/image/${photo.id}`;
@@ -98,10 +165,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         img.loading = "lazy";
 
         const time = document.createElement("figcaption");
-        time.textContent = new Date(photo.uploadedAt).toLocaleTimeString([], {
-          hour: "numeric",
-          minute: "2-digit",
-        });
+        time.textContent =
+          photo.kind === "seed"
+            ? "Yours"
+            : new Date(photo.uploadedAt).toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+              });
 
         const remove = document.createElement("button");
         remove.type = "button";
@@ -179,6 +249,25 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       });
 
       document.getElementById("refresh")!.addEventListener("click", load);
+
+      bulkInput.addEventListener("change", () => {
+        bulkUpload([...(bulkInput.files ?? [])]);
+        bulkInput.value = "";
+      });
+
+      for (const name of ["dragenter", "dragover"]) {
+        dropzone.addEventListener(name, (event) => {
+          event.preventDefault();
+          dropzone.classList.add("is-over");
+        });
+      }
+      for (const name of ["dragleave", "drop"]) {
+        dropzone.addEventListener(name, () => dropzone.classList.remove("is-over"));
+      }
+      dropzone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        bulkUpload([...(event.dataTransfer?.files ?? [])]);
+      });
 
       // Skip the gate if this session already unlocked.
       if (passcode) {
@@ -311,6 +400,43 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         opacity: 0.7;
       }
 
+      .dropzone {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+        margin: 1.25rem 0 0;
+        padding: 1.5rem 1rem;
+        border: 1px dashed rgba(155, 100, 89, 0.45);
+        border-radius: 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: background 0.2s ease, border-color 0.2s ease;
+      }
+
+      .dropzone.is-over {
+        border-color: var(--sage);
+        background: rgba(186, 199, 175, 0.18);
+      }
+
+      .dropzone strong {
+        color: var(--brown);
+        font-size: 1.05rem;
+      }
+
+      .dropzone span {
+        font-size: 0.9rem;
+        opacity: 0.8;
+      }
+
+      #bulk-status[data-tone="ok"] {
+        color: #4f7a4a;
+      }
+
+      #bulk-status[data-tone="error"] {
+        color: #b3463a;
+      }
+
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
@@ -347,6 +473,17 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         font-size: 0.8rem;
         opacity: 0.7;
         text-align: center;
+      }
+
+      /* Your own photos, so they are obvious among the guest uploads. */
+      :global(.tile.is-seed img) {
+        outline: 2px solid var(--sage);
+        outline-offset: 2px;
+      }
+
+      :global(.tile.is-seed figcaption) {
+        color: var(--brown);
+        opacity: 1;
       }
 
       :global(.remove) {

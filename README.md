@@ -10,8 +10,8 @@ slideshow within seconds. Astro + Cloudflare Workers, deployed to Webflow Cloud.
 | `/`                  | Capture page — what the NFC tag points to           |
 | `/slideshow`         | Fullscreen rotating slideshow for the venue display |
 | `/admin`             | Unlisted moderation grid — passcode, per-photo delete |
-| `/api/upload`        | `POST` a photo (multipart, field `photo`) into R2   |
-| `/api/photos`        | `GET` the photo list, newest first                  |
+| `/api/upload`        | `POST` a photo (multipart, field `photo`); `kind=seed` needs the passcode |
+| `/api/photos`        | `GET` newest-first: guests windowed, seeds always included |
 | `/api/image/*`       | `GET` the image bytes for one photo                 |
 | `/api/admin/delete`  | `POST` `{id}` to delete one photo; needs the passcode |
 
@@ -88,6 +88,21 @@ These cost real debugging time:
   — check the same key repeatedly over a few minutes.
 - **Astro scopes component styles**, so elements built in JS (the admin grid's
   tiles) receive none of them. Those rules need `:global(...)`.
+
+## Seeding your own photos
+
+`/share/admin` has a drop zone for bulk-adding the couple's own photos ahead of
+the day. They are resized in the browser first, exactly like the capture page, so
+full camera files never reach R2.
+
+These are stored under a separate `seed/` prefix and are **always** returned by
+`/api/photos`, while guest photos are windowed to the most recent 200. Sharing a
+prefix would mean a busy night of guest uploads silently pushed the couple's
+photos out of the rotation — the oldest go first, and theirs are the oldest.
+
+Creating a seed photo requires the admin passcode, so a guest cannot pin their own
+photo into the permanent set. Guest uploads still jump the slideshow queue when
+they arrive; seeding only affects what stays in rotation, not what plays next.
 
 ## Moderation
 
