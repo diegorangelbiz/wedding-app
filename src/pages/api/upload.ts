@@ -41,15 +41,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
   return json({ key, uploadedAt }, 201);
 };
 
+// Webflow Cloud's builder merges only kv_namespaces / r2_buckets / d1_databases
+// from wrangler.json into its own template — a "vars" block is silently dropped,
+// so ALLOWED_ORIGINS never reaches the worker. These defaults are the real
+// enforcement; the env var stays supported in case that changes.
+const DEFAULT_ALLOWED_HOSTS = [
+  "www.aileendiego.com",
+  "aileendiego.com",
+  "wedding-app.webflow.io",
+  "localhost",
+];
+
 // Keeps other sites from using this endpoint as free image hosting. Requests with
 // no Origin header (curl, some native clients) are allowed through — the endpoint
 // is public by design, this only blocks browsers acting for another site.
 function isAllowedOrigin(request: Request, allowList?: string): boolean {
-  const allowed = (allowList ?? "")
+  const configured = (allowList ?? "")
     .split(",")
     .map((host) => host.trim())
     .filter(Boolean);
-  if (allowed.length === 0) return true;
+  const allowed = configured.length > 0 ? configured : DEFAULT_ALLOWED_HOSTS;
 
   const origin = request.headers.get("origin");
   if (!origin) return true;

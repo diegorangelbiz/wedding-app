@@ -2,7 +2,9 @@
 import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
 
-const BASE_PATH = "/app";
+// Must match the mount path of the Webflow Cloud environment, or deploys fail
+// with ENVIRONMENT_MOUNT_MISMATCH.
+const BASE_PATH = "/photo";
 
 export default defineConfig({
   output: "server",

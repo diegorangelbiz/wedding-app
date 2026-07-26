@@ -1,12 +1,12 @@
 {
   "cloud": {
-    "framework": "astro",
-    "app_id": "d9cf5490-195e-4f72-b841-70f4608c573c",
     "contract_version": "1",
-    "deployment_type": "ssr",
+    "framework": "astro",
+    "framework_version": "5.18.2",
     "entrypoint_path": "./index.js",
+    "deployment_type": "ssr",
     "skip_no_bundle": false,
-    "framework_version": "5.18.2"
+    "app_id": "d9cf5490-195e-4f72-b841-70f4608c573c"
   },
   "telemetry": {
     "global": {
