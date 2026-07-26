@@ -57,15 +57,31 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         });
       }
 
-      // object-fit: contain only leaves side margins when the photo is narrower
-      // than the screen. Landscape shots reach the edges, so the marks come off
-      // rather than sitting on top of the photo.
-      function updateMarks(img: HTMLImageElement) {
-        const leavesSideMargin =
-          img.naturalWidth / img.naturalHeight <
-          window.innerWidth / window.innerHeight;
-        document.body.classList.toggle("has-side-margin", leavesSideMargin);
+      // The margin beside a photo depends on its shape, so the marks are placed
+      // per slide rather than at a fixed inset: object-fit: contain scales the
+      // photo to the screen height, and whatever width is left over splits
+      // evenly either side. Centre each mark in its half and cap its width so it
+      // cannot spill onto the photo. Landscape shots leave no margin at all, so
+      // the marks come off instead of sitting on top of the picture.
+      let currentImage: HTMLImageElement | null = null;
+
+      function updateMarks(img: HTMLImageElement | null = currentImage) {
+        if (!img) return;
+        currentImage = img;
+
+        const { innerWidth: vw, innerHeight: vh } = window;
+        const shownWidth = Math.min(vw, vh * (img.naturalWidth / img.naturalHeight));
+        const margin = (vw - shownWidth) / 2;
+
+        const root = document.documentElement;
+        root.style.setProperty("--margin-centre", `${margin / 2}px`);
+        root.style.setProperty("--mark-max", `${Math.max(0, margin * 0.7)}px`);
+
+        // Below a certain margin the mark is too small to read; not worth showing.
+        document.body.classList.toggle("has-side-margin", margin > 56);
       }
+
+      window.addEventListener("resize", () => updateMarks());
 
       function nextId(): string | null {
         if (priority.length) return priority.shift()!;
@@ -169,11 +185,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
          filter (the source art is brown, which disappears on this ground) and
          kept faint so a landscape photo that reaches the edges is not competing
          with it. Hidden on narrow screens, where there is no side margin. */
+      /* --margin-centre / --mark-max are set per slide in updateMarks(), which
+         measures the gap the current photo leaves beside itself. */
       .mark {
         position: absolute;
         top: 50%;
-        transform: translateY(-50%);
-        width: clamp(5rem, 11vw, 13rem);
+        width: min(clamp(5rem, 11vw, 13rem), var(--mark-max, 0px));
         height: auto;
         /* Source art is brown, which sinks into this ground — render it cream. */
         filter: brightness(0) invert(1);
@@ -187,11 +204,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       }
 
       .mark-left {
-        left: 3vw;
+        left: var(--margin-centre, 0px);
+        transform: translate(-50%, -50%);
       }
 
       .mark-right {
-        right: 3vw;
+        right: var(--margin-centre, 0px);
+        transform: translate(50%, -50%);
       }
 
       .empty {
