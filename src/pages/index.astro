@@ -14,49 +14,59 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Corinthia:wght@400;700&family=PT+Serif:wght@400;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&display=swap"
     />
   </head>
   <body data-base={base} data-state="ready">
     <main>
       <!-- Ready -->
       <section class="panel" data-panel="ready">
-        <p class="eyebrow">Aileen &amp; Diego</p>
-        <h1 class="display">Share a photo</h1>
-        <p class="lede">Take a picture and it appears on the big screen.</p>
-
-        <label class="button" id="capture-label">
-          <input id="photo-input" type="file" accept="image/*" capture="environment" hidden />
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.7l1.1-1.8A1 1 0 0 1 9.2 3.7h5.6a1 1 0 0 1 .9.5L16.8 6h1.7A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" />
-            <circle cx="12" cy="12.8" r="3.6" />
-          </svg>
-          <span>Take a photo</span>
-        </label>
+        <div class="panel-body">
+          <h1 class="display">Share a photo</h1>
+        </div>
+        <div class="panel-actions">
+          <label class="button" id="capture-label">
+            <input id="photo-input" type="file" accept="image/*" capture="environment" hidden />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.7l1.1-1.8A1 1 0 0 1 9.2 3.7h5.6a1 1 0 0 1 .9.5L16.8 6h1.7A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" />
+              <circle cx="12" cy="12.8" r="3.6" />
+            </svg>
+            <span>Take a photo</span>
+          </label>
+        </div>
       </section>
 
       <!-- Sending -->
       <section class="panel" data-panel="sending">
-        <div class="spinner" aria-hidden="true"></div>
-        <p class="lede">Sending…</p>
+        <div class="panel-body">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="lede">Sending…</p>
+        </div>
       </section>
 
       <!-- Sent -->
       <section class="panel" data-panel="sent">
-        <svg class="tick" viewBox="0 0 52 52" fill="none" stroke="currentColor" aria-hidden="true">
-          <circle cx="26" cy="26" r="24" stroke-width="1.5" opacity="0.35" />
-          <path d="M15 27l8 8 15-16" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <h2 class="display display-sm">Thank you</h2>
-        <p class="lede">Your photo is on its way to the screen.</p>
-        <button class="button button-quiet" type="button" data-action="again">Take another</button>
+        <div class="panel-body">
+          <svg class="tick" viewBox="0 0 52 52" fill="none" stroke="currentColor" aria-hidden="true">
+            <circle cx="26" cy="26" r="24" stroke-width="1.5" opacity="0.35" />
+            <path d="M15 27l8 8 15-16" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <h2 class="display display-sm">Thank you</h2>
+        </div>
+        <div class="panel-actions">
+          <button class="button button-quiet" type="button" data-action="again">Take another</button>
+        </div>
       </section>
 
       <!-- Error -->
       <section class="panel" data-panel="error">
-        <h2 class="display display-sm">Hmm</h2>
-        <p class="lede" id="error-text">That didn’t send.</p>
-        <button class="button" type="button" data-action="again">Try again</button>
+        <div class="panel-body">
+          <h2 class="display display-sm">Hmm</h2>
+          <p class="lede" id="error-text">That didn’t send.</p>
+        </div>
+        <div class="panel-actions">
+          <button class="button" type="button" data-action="again">Try again</button>
+        </div>
       </section>
     </main>
 
@@ -139,10 +149,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       body {
         margin: 0;
         min-height: 100dvh;
-        display: grid;
-        place-items: center;
+        display: flex;
+        justify-content: center;
         padding: max(1.5rem, env(safe-area-inset-top)) 1.5rem
-          max(1.5rem, env(safe-area-inset-bottom));
+          max(1.75rem, env(safe-area-inset-bottom));
         background: var(--cream);
         color: var(--rose);
         font-family: "PT Serif", Georgia, serif;
@@ -151,42 +161,48 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
       main {
         width: min(26rem, 100%);
+        display: flex;
       }
 
-      /* Only the panel matching the current state is shown. */
+      /* Two rows: content takes the free space and centres inside it, actions sit
+         on the bottom edge so the button lands under a thumb on a held phone. */
       .panel {
         display: none;
-        flex-direction: column;
-        align-items: center;
+        width: 100%;
+        grid-template-rows: 1fr auto;
         text-align: center;
-        gap: 0;
       }
 
       body[data-state="ready"] [data-panel="ready"],
       body[data-state="sending"] [data-panel="sending"],
       body[data-state="sent"] [data-panel="sent"],
       body[data-state="error"] [data-panel="error"] {
-        display: flex;
+        display: grid;
       }
 
-      .eyebrow {
-        margin: 0 0 0.25rem;
-        font-size: 0.8rem;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
+      .panel-body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .panel-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
       }
 
       .display {
         margin: 0;
-        font-family: Corinthia, "PT Serif", cursive;
         font-weight: 700;
-        line-height: 1;
+        line-height: 1.15;
         color: var(--brown);
-        font-size: clamp(3.25rem, 17vw, 4.75rem);
+        font-size: clamp(2.25rem, 11vw, 3rem);
       }
 
       .display-sm {
-        font-size: clamp(3rem, 15vw, 4rem);
+        font-size: clamp(2rem, 9.5vw, 2.5rem);
       }
 
       .lede {
@@ -196,19 +212,19 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       }
 
       .button {
-        display: inline-flex;
+        display: flex;
         align-items: center;
         justify-content: center;
-        gap: 0.65rem;
-        margin-top: 2.25rem;
-        padding: 1rem 2rem;
-        min-height: 3.5rem;
+        gap: 0.75rem;
+        width: 100%;
+        padding: 1.25rem 2rem;
+        min-height: 4.5rem;
         border: none;
-        border-radius: 25px;
+        border-radius: 999px;
         background: var(--sage);
         color: var(--brown);
         font-family: inherit;
-        font-size: 1.25rem;
+        font-size: 1.5rem;
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
         transition: transform 0.15s ease, filter 0.2s ease;
@@ -220,8 +236,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       }
 
       .button svg {
-        width: 1.6rem;
-        height: 1.6rem;
+        width: 1.9rem;
+        height: 1.9rem;
         stroke-linecap: round;
         stroke-linejoin: round;
       }
