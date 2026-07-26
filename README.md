@@ -5,13 +5,15 @@ slideshow within seconds. Astro + Cloudflare Workers, deployed to Webflow Cloud.
 
 ## Routes
 
-| Route          | Purpose                                             |
-| -------------- | --------------------------------------------------- |
-| `/`            | Capture page — what the NFC tag points to           |
-| `/slideshow`   | Fullscreen rotating slideshow for the venue display |
-| `/api/upload`  | `POST` a photo (multipart, field `photo`) into R2   |
-| `/api/photos`  | `GET` the photo list, newest first                  |
-| `/api/image/*` | `GET` the image bytes for one photo                 |
+| Route                | Purpose                                             |
+| -------------------- | --------------------------------------------------- |
+| `/`                  | Capture page — what the NFC tag points to           |
+| `/slideshow`         | Fullscreen rotating slideshow for the venue display |
+| `/admin`             | Unlisted moderation grid — passcode, per-photo delete |
+| `/api/upload`        | `POST` a photo (multipart, field `photo`) into R2   |
+| `/api/photos`        | `GET` the photo list, newest first                  |
+| `/api/image/*`       | `GET` the image bytes for one photo                 |
+| `/api/admin/delete`  | `POST` `{id}` to delete one photo; needs the passcode |
 
 All routes are served under the mount path configured in `astro.config.mjs`
 (`base: "/share"`), so the live URLs are:
@@ -80,6 +82,26 @@ These cost real debugging time:
 - **Webflow replaces `astro.config.mjs` at build time** with a template that
   merges yours and always adds `@astrojs/react`. React and react-dom must be
   declared as dependencies or the deploy build fails.
+- **R2 reads lag writes by minutes.** Deleted objects kept appearing in `list()`
+  and still returned `200` from `get()` for several minutes after a confirmed
+  delete, then vanished on their own. Never conclude anything from a single read
+  — check the same key repeatedly over a few minutes.
+- **Astro scopes component styles**, so elements built in JS (the admin grid's
+  tiles) receive none of them. Those rules need `:global(...)`.
+
+## Moderation
+
+`/share/admin` is unlisted (nothing links to it, and it is `noindex`) and asks for
+a passcode. The passcode is in [`src/lib/admin.ts`](src/lib/admin.ts) — rotate it
+by editing that constant and redeploying.
+
+It is never rendered into the page: the operator types it, the browser sends it as
+a header, and the server compares. So it cannot be recovered from the served HTML
+or JS, and the unlisted URL on its own grants nothing — every delete is checked
+server-side.
+
+Removing a photo takes two taps, and deletes confirm with `head()` rather than a
+follow-up listing, because R2's reads here lag writes by minutes (see below).
 
 ## Configuration
 
