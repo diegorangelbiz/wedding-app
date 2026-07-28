@@ -28,6 +28,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
     <p class="empty" id="empty">Waiting for the first photo…</p>
 
+    <button class="fullscreen" id="fullscreen" type="button" aria-label="Full screen">
+      <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <svg class="icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path d="M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
+
     <script>
       const base = document.body.dataset.base ?? "";
       const layers = [
@@ -145,6 +154,62 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         }
       }
 
+      // Full screen. The page runs unattended for hours, so the control and the
+      // cursor fade out once the room stops touching the laptop, and come back
+      // on any pointer or key activity.
+      const fullscreenButton = document.getElementById("fullscreen") as HTMLButtonElement;
+      const IDLE_MS = 2500;
+      let idleTimer: number | undefined;
+
+      function wake() {
+        document.body.classList.remove("is-idle");
+        window.clearTimeout(idleTimer);
+        idleTimer = window.setTimeout(
+          () => document.body.classList.add("is-idle"),
+          IDLE_MS,
+        );
+      }
+
+      async function toggleFullscreen() {
+        try {
+          if (document.fullscreenElement) {
+            await document.exitFullscreen();
+          } else {
+            await document.documentElement.requestFullscreen();
+          }
+        } catch {
+          // Denied or unsupported (iPhone Safari has no element fullscreen) —
+          // leave the page as it is rather than failing loudly at a wedding.
+        }
+      }
+
+      function syncFullscreenState() {
+        const active = Boolean(document.fullscreenElement);
+        document.body.classList.toggle("is-fullscreen", active);
+        fullscreenButton.setAttribute(
+          "aria-label",
+          active ? "Exit full screen" : "Full screen",
+        );
+        // The viewport changed, so the marks need re-measuring against it.
+        updateMarks();
+      }
+
+      if (!document.documentElement.requestFullscreen) {
+        fullscreenButton.hidden = true;
+      }
+
+      fullscreenButton.addEventListener("click", toggleFullscreen);
+      document.addEventListener("fullscreenchange", syncFullscreenState);
+
+      for (const name of ["pointermove", "pointerdown", "keydown"]) {
+        window.addEventListener(name, wake, { passive: true });
+      }
+
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "f" || event.key === "F") toggleFullscreen();
+      });
+
+      wake();
       poll();
       setInterval(poll, POLL_MS);
       setInterval(advance, SLIDE_MS);
@@ -226,6 +291,65 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
       .empty[hidden] {
         display: none;
+      }
+
+      .fullscreen {
+        position: fixed;
+        right: 1.5rem;
+        bottom: 1.5rem;
+        display: grid;
+        place-items: center;
+        width: 3rem;
+        height: 3rem;
+        padding: 0;
+        border: 1px solid rgba(232, 213, 207, 0.3);
+        border-radius: 50%;
+        background: rgba(20, 10, 8, 0.55);
+        color: #e8d5cf;
+        cursor: pointer;
+        opacity: 0.85;
+        transition: opacity 0.4s ease, background 0.2s ease;
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+      }
+
+      .fullscreen:hover {
+        background: rgba(20, 10, 8, 0.75);
+      }
+
+      .fullscreen[hidden] {
+        display: none;
+      }
+
+      .fullscreen svg {
+        width: 1.35rem;
+        height: 1.35rem;
+      }
+
+      /* One icon at a time: expand normally, collapse once full screen. */
+      .icon-collapse,
+      body.is-fullscreen .icon-expand {
+        display: none;
+      }
+
+      body.is-fullscreen .icon-collapse {
+        display: block;
+      }
+
+      /* Nothing on screen but the photos once the room leaves it alone. */
+      body.is-idle .fullscreen {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      body.is-idle {
+        cursor: none;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .fullscreen {
+          transition: none;
+        }
       }
     </style>
   </body>
